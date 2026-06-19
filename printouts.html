@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PoD · Print Sheet</title>
+<style>
+  :root{ --paper:#faf8f3; --ink:#1a1612; --muted:#6b5a36; --seal:#b5371f; --rule:#cbb98e; --stripe:#ec0016; }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#3a3a3a;font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;color:#1a1612}
+
+  /* ---- screen chrome (hidden on print) ---- */
+  .bar{
+    position:sticky;top:0;z-index:10;background:#13171a;color:#dfe6e9;
+    display:flex;gap:.75rem;align-items:center;flex-wrap:wrap;
+    padding:.9rem 1.25rem;border-bottom:1px solid #222a2e;
+  }
+  .bar label{font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:#7c8a93}
+  .bar input{
+    flex:1;min-width:220px;background:#0f1316;border:1px solid #222a2e;border-radius:4px;
+    color:#eef3f4;font:inherit;font-size:.85rem;padding:.55rem .7rem;
+  }
+  .bar input:focus{outline:none;border-color:#ffb02e}
+  .bar button{
+    background:#ffb02e;color:#241700;border:none;border-radius:4px;cursor:pointer;
+    font:inherit;font-weight:700;font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;padding:.6rem 1rem;
+  }
+  .bar .hint{flex-basis:100%;font-size:.66rem;color:#7c8a93;letter-spacing:.04em}
+  .warn{color:#ff9b6b}
+
+  /* ---- A4 sheet ---- */
+  .sheet{
+    width:210mm;min-height:297mm;margin:1.5rem auto;background:#fff;
+    padding:10mm 8mm;
+    display:grid;grid-template-columns:1fr 1fr;grid-auto-rows:66mm;gap:0;
+    box-shadow:0 8px 40px rgba(0,0,0,.5);
+  }
+  .card{
+    position:relative;background:var(--paper);color:var(--ink);
+    border:.3mm dashed #b9b9b9;
+    display:flex;flex-direction:column;overflow:hidden;
+  }
+  /* Red stripe header — like DB/SNCF tickets */
+  .card-head{
+    background:var(--stripe);color:#fff;
+    padding:1.8mm 4mm;display:flex;justify-content:space-between;align-items:center;
+  }
+  .card-head .route{font-family:"Arial Narrow","Helvetica Neue",sans-serif;font-weight:700;font-size:9pt;letter-spacing:.3pt;text-transform:uppercase}
+  .card-head .class{font-size:5.5pt;letter-spacing:.8pt;text-transform:uppercase;opacity:.85}
+
+  .card-body{flex:1;display:grid;grid-template-columns:1fr 20mm;gap:2mm;padding:2.5mm 4mm 2mm}
+
+  .card-left{display:flex;flex-direction:column;justify-content:space-between}
+  .card-left .title{font-family:"Arial Narrow","Helvetica Neue",sans-serif;font-weight:700;font-size:14pt;letter-spacing:.4pt;text-transform:uppercase;line-height:1;color:var(--ink)}
+  .card-left .pitch{font-size:6.5pt;line-height:1.35;color:#3a322a;margin-top:1mm}
+  .card-left .pitch b{color:var(--seal)}
+  .card-left .meta{display:flex;gap:4mm;margin-top:1.5mm}
+  .card-left .meta .field{font-size:4.8pt;letter-spacing:.5pt;text-transform:uppercase;color:var(--muted)}
+  .card-left .meta .val{font-size:7pt;font-weight:700;color:var(--ink);margin-top:.3mm}
+
+  .card-right{display:flex;flex-direction:column;align-items:center;justify-content:center;border-left:.3mm dashed var(--rule);padding-left:2mm}
+  .qr{width:17mm;height:17mm;background:#fff;border:.25mm solid var(--rule);padding:.5mm}
+  .qr svg{width:100%;height:100%;display:block}
+  .qr.fallback{display:flex;align-items:center;justify-content:center;font-size:4.5pt;color:var(--muted);text-align:center}
+  .card-right .scan{font-size:5pt;letter-spacing:.6pt;text-transform:uppercase;color:var(--seal);margin-top:1mm;font-weight:700}
+
+  .card-bottom{
+    border-top:.3mm solid var(--rule);padding:1.5mm 4mm;
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  .card-bottom .cta{font-family:"Arial Narrow","Helvetica Neue",sans-serif;font-weight:700;font-size:9pt;text-transform:uppercase;color:var(--seal);letter-spacing:.2pt}
+  .card-bottom .url{font-size:5pt;color:var(--muted);word-break:break-all}
+  .card-bottom .serial{font-size:4.5pt;letter-spacing:.5pt;color:var(--muted)}
+
+  @media print{
+    @page{size:A4;margin:0}
+    body{background:#fff}
+    .bar{display:none}
+    .sheet{margin:0;box-shadow:none;width:auto;min-height:auto}
+    .card{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  }
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <label for="url">Deep link</label>
+  <input id="url" value="https://dodonew.dot" placeholder="https://your-name.dot deep link to the dapp">
+  <span class="hint">Use the <b>in-app .dot</b> link so a scan opens the dapp ready to mint &amp; like (not the .dot.li mirror). Cut along the dashed guides. <span id="qrwarn"></span></span>
+</div>
+
+<div class="sheet" id="sheet"></div>
+
+<script type="module">
+const $ = s => document.querySelector(s);
+const CARDS = 8;
+
+const cardHTML = (url, i) => `
+  <div class="card">
+    <div class="card-head">
+      <span class="route">Berlin &bull; Web3 Summit &bull; 2026</span>
+      <span class="class">2nd Cl. / Non-refundable</span>
+    </div>
+    <div class="card-body">
+      <div class="card-left">
+        <div>
+          <div class="title">Proof of Delay</div>
+          <div class="pitch">Were late with DB? Now you can prove it.<br><b>Absurd. Fast. Free.</b></div>
+        </div>
+        <div class="meta">
+          <div><div class="field">Valid</div><div class="val">18 – 19.06.2026</div></div>
+          <div><div class="field">Class</div><div class="val">Satirical</div></div>
+          <div><div class="field">Preis</div><div class="val">0,00 EUR</div></div>
+        </div>
+      </div>
+      <div class="card-right">
+        <div class="qr" data-qr></div>
+        <div class="scan">Scan me</div>
+      </div>
+    </div>
+    <div class="card-bottom">
+      <div class="cta">&hearts; Like it on the board</div>
+      <div class="url">${url.replace(/[<>&]/g,'')}</div>
+      <div class="serial">PoD #${String(i+1).padStart(3,'0')}</div>
+    </div>
+  </div>`;
+
+async function render(){
+  const url = $('#url').value.trim() || 'https://dodonew.dot';
+  $('#sheet').innerHTML = Array.from({length:CARDS}, (_,i)=>cardHTML(url,i)).join('');
+  let svg = null;
+  try{
+    const mod = await import('https://esm.sh/qrcode-generator@1.4.4');
+    const qrcode = mod.default || mod;
+    const qr = qrcode(0,'M'); qr.addData(url); qr.make();
+    svg = qr.createSvgTag({scalable:true, margin:0});
+    $('#qrwarn').textContent = '';
+  }catch(e){
+    $('#qrwarn').innerHTML = '<span class="warn">QR generator offline &mdash; cards show the URL as text; add a QR by hand or print online.</span>';
+  }
+  document.querySelectorAll('[data-qr]').forEach(el=>{
+    if(svg){ el.innerHTML = svg; }
+    else { el.classList.add('fallback'); el.textContent = 'QR: see URL below'; }
+  });
+}
+
+$('#url').addEventListener('input', render);
+render();
+</script>
+</body>
+</html>
